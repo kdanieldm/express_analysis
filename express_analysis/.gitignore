@@ -31,12 +31,23 @@ ENV/
 *.swp
 *.swo
 
+# OS
+.DS_Store
+Thumbs.db
+
 # Streamlit
 .streamlit/
 
-# Excel temporary files
-~$*.xlsx
-~$*.xls
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Local development
+*.log
+*.sqlite3
+
+# Allow Excel files
+!*.xlsx
+!*.xls
 
 # Project specific
 Detalle/

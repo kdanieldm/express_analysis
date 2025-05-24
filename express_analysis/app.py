@@ -5,6 +5,8 @@ from datetime import datetime
 import shutil
 from pathlib import Path
 import re
+import hashlib
+import json
 
 # Configuración de la página
 st.set_page_config(
@@ -332,83 +334,122 @@ def mostrar_dashboard():
                 st.rerun()
 
 def procesar_archivos():
+    """
+    Procesa los archivos de Wicho y detalle para generar el análisis de comisiones.
+    """
     # Ruta del archivo de wicho
     archivo_wicho = BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
     
     if not archivo_wicho.exists():
-        st.error("No se encontró el archivo CHIPS RUTA JL CABRERA WICHO.xlsx")
+        st.error("❌ No se encontró el archivo CHIPS RUTA JL CABRERA WICHO.xlsx")
         return False
 
     # Leer todas las hojas del archivo wicho
     try:
+        st.info("📊 Leyendo archivo de Wicho...")
         dataframes_wicho = pd.read_excel(archivo_wicho, sheet_name=None)
+        st.success("✅ Archivo de Wicho leído correctamente")
     except Exception as e:
-        st.error(f"Error al leer el archivo de Wicho: {str(e)}")
+        st.error(f"❌ Error al leer el archivo de Wicho: {str(e)}")
         return False
 
     # Lista para almacenar los resultados finales
     resultados_finales = []
+    archivos_procesados = []
+    total_lineas_procesadas = 0
 
     # Iterar sobre cada archivo de detalle
-    archivos_procesados = []
-    for archivo_detalle in os.listdir(DETALLE_DIR):
-        if archivo_detalle.endswith('.xlsx'):
-            ruta_archivo_detalle = DETALLE_DIR / archivo_detalle
-            
-            try:
-                # Leer el archivo de detalle sin especificar la fila de encabezado
-                df_detalle_sin_encabezado = pd.read_excel(ruta_archivo_detalle, header=None)
-                periodo = df_detalle_sin_encabezado.iloc[0, 2]
+    archivos_detalle = [f for f in os.listdir(DETALLE_DIR) if f.endswith('.xlsx') and not f.startswith('~$')]
+    
+    if not archivos_detalle:
+        st.warning("⚠️ No hay archivos de detalle para procesar")
+        return False
 
-                # Leer el archivo de detalle con el encabezado en la fila 3
-                df_detalle = pd.read_excel(ruta_archivo_detalle, header=2)
-                df_detalle.columns = df_detalle.columns.str.strip()
+    st.info(f"📁 Procesando {len(archivos_detalle)} archivos de detalle...")
+    
+    for archivo_detalle in archivos_detalle:
+        ruta_archivo_detalle = DETALLE_DIR / archivo_detalle
+        st.write(f"📄 Procesando: {archivo_detalle}")
+        
+        try:
+            # Leer el archivo de detalle sin especificar la fila de encabezado
+            df_detalle_sin_encabezado = pd.read_excel(ruta_archivo_detalle, header=None)
+            periodo = df_detalle_sin_encabezado.iloc[0, 2]
+            st.write(f"📅 Período: {periodo}")
 
-                # Verificar el nombre de la columna en el archivo de detalle
-                columnas_posibles = ['Número celular asignado', 'Número de Teléfono', 'Número celular', 'Celular']
-                columna_numero = next((col for col in columnas_posibles if col in df_detalle.columns), None)
+            # Leer el archivo de detalle con el encabezado en la fila 3
+            df_detalle = pd.read_excel(ruta_archivo_detalle, header=2)
+            df_detalle.columns = df_detalle.columns.str.strip()
 
-                if not columna_numero:
-                    st.warning(f"No se encontró la columna de número de teléfono en el archivo {archivo_detalle}")
-                    continue
+            # Verificar el nombre de la columna en el archivo de detalle
+            columnas_posibles = ['Número celular asignado', 'Número de Teléfono', 'Número celular', 'Celular']
+            columna_numero = next((col for col in columnas_posibles if col in df_detalle.columns), None)
 
-                # Procesar cada hoja del archivo wicho
-                resultados_archivo = []
-                for nombre_hoja, df_wicho in dataframes_wicho.items():
-                    if 'CEL' in df_wicho.columns:
-                        df_join = pd.merge(df_wicho, df_detalle, left_on='CEL', right_on=columna_numero, how='inner')
-                        resultados_archivo.append(df_join)
-
-                # Concatenar resultados del archivo actual
-                if resultados_archivo:
-                    resultado_archivo = pd.concat(resultados_archivo, ignore_index=True)
-                    resultado_archivo = resultado_archivo.drop_duplicates(subset='CEL')
-                    resultado_archivo['Archivo_Detalle'] = archivo_detalle
-                    resultados_finales.append(resultado_archivo)
-                    archivos_procesados.append(archivo_detalle)
-
-            except Exception as e:
-                st.error(f"Error procesando el archivo {archivo_detalle}: {str(e)}")
+            if not columna_numero:
+                st.warning(f"⚠️ No se encontró la columna de número de teléfono en el archivo {archivo_detalle}")
                 continue
+
+            # Procesar cada hoja del archivo wicho
+            resultados_archivo = []
+            for nombre_hoja, df_wicho in dataframes_wicho.items():
+                if 'CEL' in df_wicho.columns:
+                    # Realizar el join
+                    df_join = pd.merge(
+                        df_wicho,
+                        df_detalle,
+                        left_on='CEL',
+                        right_on=columna_numero,
+                        how='inner'
+                    )
+                    
+                    if not df_join.empty:
+                        resultados_archivo.append(df_join)
+                        st.write(f"✅ Hoja '{nombre_hoja}': {len(df_join)} líneas encontradas")
+
+            # Concatenar resultados del archivo actual
+            if resultados_archivo:
+                resultado_archivo = pd.concat(resultados_archivo, ignore_index=True)
+                resultado_archivo = resultado_archivo.drop_duplicates(subset='CEL')
+                resultado_archivo['Archivo_Detalle'] = archivo_detalle
+                resultado_archivo['Periodo'] = periodo
+                resultados_finales.append(resultado_archivo)
+                archivos_procesados.append(archivo_detalle)
+                total_lineas_procesadas += len(resultado_archivo)
+                st.success(f"✅ Archivo {archivo_detalle} procesado correctamente")
+
+        except Exception as e:
+            st.error(f"❌ Error procesando el archivo {archivo_detalle}: {str(e)}")
+            continue
 
     # Guardar resultados si se encontraron coincidencias
     if resultados_finales:
         resultado_final = pd.concat(resultados_finales, ignore_index=True)
         fecha_actual = datetime.now().strftime("%Y%m%d")
         nombre_archivo = RESULTADOS_DIR / f"{fecha_actual}_analisis_chipExpress_(POR_PAGAR).xlsx"
-        resultado_final.to_excel(nombre_archivo, index=False)
-        st.success(f"Análisis completado. Resultados guardados en: {nombre_archivo}")
-
-        # Mover archivos procesados a la carpeta histórica
-        for archivo in archivos_procesados:
-            origen = DETALLE_DIR / archivo
-            destino = HISTORICO_DIR / archivo
-            shutil.move(str(origen), str(destino))
         
-        st.success(f"Se movieron {len(archivos_procesados)} archivos a la carpeta histórica")
-        return True
+        # Guardar el archivo de resultados
+        try:
+            resultado_final.to_excel(nombre_archivo, index=False)
+            st.success(f"✅ Análisis completado. Resultados guardados en: {nombre_archivo}")
+            st.info(f"📊 Resumen del análisis:")
+            st.write(f"- Total de archivos procesados: {len(archivos_procesados)}")
+            st.write(f"- Total de líneas encontradas: {total_lineas_procesadas}")
+            st.write(f"- Archivo de resultados: {nombre_archivo}")
+
+            # Mover archivos procesados a la carpeta histórica
+            for archivo in archivos_procesados:
+                origen = DETALLE_DIR / archivo
+                destino = HISTORICO_DIR / archivo
+                shutil.move(str(origen), str(destino))
+            
+            st.success(f"✅ Se movieron {len(archivos_procesados)} archivos a la carpeta histórica")
+            return True
+            
+        except Exception as e:
+            st.error(f"❌ Error al guardar el archivo de resultados: {str(e)}")
+            return False
     else:
-        st.warning("No se encontraron coincidencias en ningún archivo")
+        st.warning("⚠️ No se encontraron coincidencias en ningún archivo")
         return False
 
 def mostrar_archivos_carpeta(directorio, titulo):
@@ -452,6 +493,70 @@ def mostrar_archivos_carpeta(directorio, titulo):
             st.warning(f"No hay archivos en {titulo}")
     except Exception as e:
         st.error(f"Error al acceder a {titulo}: {str(e)}")
+
+# Función para verificar credenciales
+def check_credentials(username, password):
+    # En un entorno real, esto debería estar en una base de datos o variables de entorno
+    # Por ahora, usaremos un archivo de configuración
+    config_file = Path("config.json")
+    
+    if not config_file.exists():
+        # Crear configuración por defecto si no existe
+        default_config = {
+            "users": {
+                "admin": {
+                    "password": hashlib.sha256("Lupanar2024".encode()).hexdigest(),
+                    "role": "admin"
+                }
+            }
+        }
+        with open(config_file, "w") as f:
+            json.dump(default_config, f, indent=4)
+    
+    # Leer configuración
+    with open(config_file, "r") as f:
+        config = json.load(f)
+    
+    # Verificar credenciales
+    if username in config["users"]:
+        stored_password = config["users"][username]["password"]
+        if hashlib.sha256(password.encode()).hexdigest() == stored_password:
+            return True, config["users"][username]["role"]
+    
+    return False, None
+
+# Inicializar estado de autenticación
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "username" not in st.session_state:
+    st.session_state.username = None
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+# Mostrar login si no está autenticado
+if not st.session_state.authenticated:
+    st.title("🔐 Login - Análisis de Chips Express")
+    
+    with st.form("login_form"):
+        username = st.text_input("Usuario")
+        password = st.text_input("Contraseña", type="password")
+        submit = st.form_submit_button("Iniciar Sesión")
+        
+        if submit:
+            authenticated, role = check_credentials(username, password)
+            if authenticated:
+                st.session_state.authenticated = True
+                st.session_state.username = username
+                st.session_state.role = role
+                st.success("¡Bienvenido!")
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos")
+    
+    st.stop()
+
+# Mostrar información de usuario
+st.sidebar.write(f"👤 {st.session_state.username}")
 
 # Menú lateral
 st.sidebar.title("📊 Análisis de Chips Express")
@@ -526,36 +631,71 @@ elif pagina == "📁 Gestión de Archivos":
 elif pagina == "🚀 Ejecutar Análisis de Comisiones":
     st.title("🚀 Ejecutar Análisis de Comisiones")
     
-    # Subir archivo de Wicho
-    st.subheader("1. Archivo Wicho")
-    archivo_wicho = st.file_uploader("Sube el archivo CHIPS RUTA JL CABRERA WICHO.xlsx", type=['xlsx'])
+    # Mostrar los tres pasos desde el principio
+    st.markdown("""
+    ### 📋 Proceso de Análisis
     
-    if archivo_wicho:
-        # Guardar el archivo
-        with open(BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx", "wb") as f:
-            f.write(archivo_wicho.getvalue())
-        st.success("Archivo de Wicho actualizado correctamente")
+    1. **Subir archivo Wicho**: Actualizar el archivo base CHIPS RUTA JL CABRERA WICHO.xlsx
+    2. **Subir archivos de detalle**: Agregar los archivos a analizar
+    3. **Ejecutar análisis**: Procesar los archivos y generar resultados
     
-    # Subir archivos de detalle
-    st.subheader("2. Archivos de Detalle")
-    archivos_detalle = st.file_uploader("Sube los archivos de detalle", type=['xlsx'], accept_multiple_files=True)
+    Los resultados se guardarán en la carpeta 'Resultados' y los archivos de detalle se moverán automáticamente a 'Detalle histórico'.
+    """)
     
-    if archivos_detalle:
-        for archivo in archivos_detalle:
-            # Guardar cada archivo en la carpeta de detalle
-            with open(DETALLE_DIR / archivo.name, "wb") as f:
-                f.write(archivo.getvalue())
-        st.success(f"Se subieron {len(archivos_detalle)} archivos de detalle")
+    # Paso 1: Archivo Wicho
+    st.markdown("### 1️⃣ Archivo Wicho")
+    archivo_wicho = st.file_uploader(
+        "Sube el archivo CHIPS RUTA JL CABRERA WICHO.xlsx",
+        type=['xlsx'],
+        help="Este archivo contiene la información base para el análisis"
+    )
+
+    # Paso 2: Archivos de Detalle
+    st.markdown("### 2️⃣ Archivos de Detalle")
+    archivos_detalle = st.file_uploader(
+        "Sube los archivos de detalle",
+        type=['xlsx'],
+        accept_multiple_files=True,
+        help="Puedes subir uno o varios archivos de detalle para procesar"
+    )
+
+    # Paso 3: Ejecutar Análisis
+    st.markdown("### 3️⃣ Ejecutar Análisis")
     
-    # Botón para ejecutar el análisis
-    st.subheader("3. Ejecutar Análisis")
-    if st.button("🚀 Ejecutar Análisis", type="primary"):
-        if not os.path.exists(BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"):
-            st.error("Primero debes subir el archivo de Wicho")
-        elif not os.listdir(DETALLE_DIR):
-            st.error("No hay archivos de detalle para procesar")
+    # Mostrar estado de los archivos
+    col1, col2 = st.columns(2)
+    with col1:
+        if archivo_wicho:
+            st.success("✅ Archivo Wicho listo")
         else:
-            with st.spinner("Procesando archivos..."):
+            st.warning("⚠️ Falta subir el archivo Wicho")
+    
+    with col2:
+        if archivos_detalle:
+            st.success(f"✅ {len(archivos_detalle)} archivos de detalle listos")
+        else:
+            st.warning("⚠️ Falta subir archivos de detalle")
+
+    # Botón para ejecutar el análisis
+    if st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True):
+        if not archivo_wicho:
+            st.error("❌ Primero debes subir el archivo de Wicho")
+        elif not archivos_detalle:
+            st.error("❌ Debes subir al menos un archivo de detalle")
+        else:
+            # Guardar archivo Wicho
+            with open(BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx", "wb") as f:
+                f.write(archivo_wicho.getvalue())
+            st.success("✅ Archivo de Wicho actualizado correctamente")
+            
+            # Guardar archivos de detalle
+            for archivo in archivos_detalle:
+                with open(DETALLE_DIR / archivo.name, "wb") as f:
+                    f.write(archivo.getvalue())
+            st.success(f"✅ Se subieron {len(archivos_detalle)} archivos de detalle")
+            
+            # Ejecutar análisis
+            with st.spinner("🔄 Procesando archivos..."):
                 procesar_archivos()
 
 elif pagina == "⚙️ Configuración":
@@ -696,4 +836,15 @@ elif pagina == "⚙️ Configuración":
     - **Última actualización**: {datetime.now().strftime('%Y-%m-%d')}
     - **Directorio de trabajo**: {BASE_DIR.absolute()}
     - **Espacio disponible**: {shutil.disk_usage(BASE_DIR).free / (1024**3):.2f} GB
-    """) 
+    """)
+
+# Agregar espacio en la barra lateral
+st.sidebar.markdown("---")
+st.sidebar.markdown("---")
+
+# Botón de logout al final de la barra lateral
+if st.sidebar.button("🚪 Cerrar Sesión", type="primary"):
+    st.session_state.authenticated = False
+    st.session_state.username = None
+    st.session_state.role = None
+    st.rerun() 

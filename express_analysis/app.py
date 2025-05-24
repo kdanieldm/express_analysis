@@ -29,42 +29,6 @@ DATA_DIR = TEMP_DIR / "data"  # Directorio para datos persistentes
 for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
-# Función para inicializar archivos de ejemplo
-def inicializar_archivos_ejemplo():
-    """Inicializa los archivos de ejemplo en el directorio temporal."""
-    try:
-        # Verificar si hay archivos en el directorio temporal
-        if not any(RESULTADOS_DIR.glob("*.xlsx")):
-            st.info("No se encontraron archivos en la carpeta Resultados")
-            st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
-            
-            # Intentar sincronizar con Git
-            st.write("Intentando sincronizar con Git...")
-            sincronizar_con_git()
-            
-            # Verificar nuevamente después de sincronizar
-            if not any(RESULTADOS_DIR.glob("*.xlsx")):
-                st.warning("No se encontraron archivos después de sincronizar con Git")
-    except Exception as e:
-        st.error(f"Error al inicializar archivos de ejemplo: {str(e)}")
-
-# Inicializar archivos al inicio
-inicializar_archivos_ejemplo()
-
-# Función para guardar datos persistentes
-def guardar_datos_persistentes(nombre, datos):
-    """Guarda datos localmente."""
-    archivo = DATA_DIR / f"{nombre}.pkl"
-    pd.to_pickle(datos, archivo)
-
-# Función para cargar datos persistentes
-def cargar_datos_persistentes(nombre):
-    """Carga datos localmente."""
-    archivo = DATA_DIR / f"{nombre}.pkl"
-    if archivo.exists():
-        return pd.read_pickle(archivo)
-    return None
-
 def sincronizar_con_git():
     """Sincroniza los archivos entre Git y el directorio temporal."""
     try:
@@ -135,6 +99,41 @@ def sincronizar_con_git():
         st.error(f"Error al sincronizar con Git: {str(e)}")
         return False
 
+def inicializar_archivos_ejemplo():
+    """Inicializa los archivos de ejemplo en el directorio temporal."""
+    try:
+        # Verificar si hay archivos en el directorio temporal
+        if not any(RESULTADOS_DIR.glob("*.xlsx")):
+            st.info("No se encontraron archivos en la carpeta Resultados")
+            st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
+            
+            # Intentar sincronizar con Git
+            st.write("Intentando sincronizar con Git...")
+            sincronizar_con_git()
+            
+            # Verificar nuevamente después de sincronizar
+            if not any(RESULTADOS_DIR.glob("*.xlsx")):
+                st.warning("No se encontraron archivos después de sincronizar con Git")
+    except Exception as e:
+        st.error(f"Error al inicializar archivos de ejemplo: {str(e)}")
+
+# Inicializar archivos al inicio
+inicializar_archivos_ejemplo()
+
+# Función para guardar datos persistentes
+def guardar_datos_persistentes(nombre, datos):
+    """Guarda datos localmente."""
+    archivo = DATA_DIR / f"{nombre}.pkl"
+    pd.to_pickle(datos, archivo)
+
+# Función para cargar datos persistentes
+def cargar_datos_persistentes(nombre):
+    """Carga datos localmente."""
+    archivo = DATA_DIR / f"{nombre}.pkl"
+    if archivo.exists():
+        return pd.read_pickle(archivo)
+    return None
+
 def guardar_en_git(archivo, mensaje):
     """Guarda un archivo en Git."""
     try:
@@ -164,9 +163,6 @@ def guardar_en_git(archivo, mensaje):
     except Exception as e:
         st.error(f"Error al guardar en Git: {str(e)}")
         return False
-
-# Sincronizar con Git al inicio
-sincronizar_con_git()
 
 def procesar_archivos():
     """

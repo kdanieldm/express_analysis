@@ -32,9 +32,21 @@ for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
 # Función para inicializar archivos de ejemplo
 def inicializar_archivos_ejemplo():
     """Inicializa los archivos de ejemplo en el directorio temporal."""
-    if not any(RESULTADOS_DIR.glob("*.xlsx")):
-        st.info("No se encontraron archivos en la carpeta Resultados")
-        st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
+    try:
+        # Verificar si hay archivos en el directorio temporal
+        if not any(RESULTADOS_DIR.glob("*.xlsx")):
+            st.info("No se encontraron archivos en la carpeta Resultados")
+            st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
+            
+            # Intentar sincronizar con Git
+            st.write("Intentando sincronizar con Git...")
+            sincronizar_con_git()
+            
+            # Verificar nuevamente después de sincronizar
+            if not any(RESULTADOS_DIR.glob("*.xlsx")):
+                st.warning("No se encontraron archivos después de sincronizar con Git")
+    except Exception as e:
+        st.error(f"Error al inicializar archivos de ejemplo: {str(e)}")
 
 # Inicializar archivos al inicio
 inicializar_archivos_ejemplo()
@@ -98,6 +110,25 @@ def sincronizar_con_git():
                 st.write(f"{dir_name}: {[a.name for a in archivos]}")
             else:
                 st.warning(f"Directorio temporal no existe: {temp_dir}")
+        
+        # Copiar archivos del repositorio al directorio temporal
+        st.write("\nCopiando archivos del repositorio al directorio temporal...")
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            git_dir = BASE_DIR / dir_name
+            temp_dir = TEMP_DIR / dir_name
+            
+            if git_dir.exists():
+                for archivo in git_dir.glob("*.xlsx"):
+                    try:
+                        # Asegurar que el directorio temporal existe
+                        temp_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copiar archivo
+                        destino = temp_dir / archivo.name
+                        shutil.copy2(archivo, destino)
+                        st.write(f"Copiado del repositorio: {archivo.name} -> {destino}")
+                    except Exception as e:
+                        st.error(f"Error al copiar {archivo.name} del repositorio: {str(e)}")
         
         return True
     except Exception as e:

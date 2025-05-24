@@ -25,13 +25,15 @@ st.set_page_config(
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 DRIVE_PATH = '/content/drive/MyDrive/Express_Analysis'  # Ruta en Google Drive
 
-# Crear directorios necesarios si no existen
-BASE_DIR = Path(".")  # Directorio actual
-DETALLE_DIR = BASE_DIR / "Detalle"
-RESULTADOS_DIR = BASE_DIR / "Resultados"
-HISTORICO_DIR = BASE_DIR / "Detalle historico"
-DATA_DIR = BASE_DIR / "data"  # Directorio para datos persistentes
+# Configuración de directorios
+BASE_DIR = Path(".")  # Directorio del repositorio
+TEMP_DIR = Path("/tmp/express_analysis")  # Directorio temporal en Streamlit
+DETALLE_DIR = TEMP_DIR / "Detalle"
+RESULTADOS_DIR = TEMP_DIR / "Resultados"
+HISTORICO_DIR = TEMP_DIR / "Detalle historico"
+DATA_DIR = TEMP_DIR / "data"  # Directorio para datos persistentes
 
+# Crear directorios temporales si no existen
 for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
@@ -123,11 +125,42 @@ def cargar_datos_persistentes(nombre):
         return pd.read_pickle(archivo)
     return None
 
+def sincronizar_con_git():
+    """Sincroniza los archivos entre Git y el directorio temporal."""
+    try:
+        # Copiar archivos de Git a temporal
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            git_dir = BASE_DIR / dir_name
+            temp_dir = TEMP_DIR / dir_name
+            if git_dir.exists():
+                for archivo in git_dir.glob("*.xlsx"):
+                    shutil.copy2(archivo, temp_dir / archivo.name)
+        return True
+    except Exception as e:
+        st.error(f"Error al sincronizar con Git: {str(e)}")
+        return False
+
 def guardar_en_git(archivo, mensaje):
     """Guarda un archivo en Git."""
     try:
+        # Determinar el directorio de destino en Git
+        if "Detalle" in str(archivo):
+            git_dir = BASE_DIR / "Detalle"
+        elif "Resultados" in str(archivo):
+            git_dir = BASE_DIR / "Resultados"
+        elif "Detalle historico" in str(archivo):
+            git_dir = BASE_DIR / "Detalle historico"
+        else:
+            git_dir = BASE_DIR
+
+        # Crear directorio si no existe
+        git_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copiar archivo a Git
+        shutil.copy2(archivo, git_dir / archivo.name)
+
         # Agregar el archivo a Git
-        subprocess.run(['git', 'add', str(archivo)], check=True)
+        subprocess.run(['git', 'add', str(git_dir / archivo.name)], check=True)
         # Hacer commit
         subprocess.run(['git', 'commit', '-m', mensaje], check=True)
         # Hacer push
@@ -136,6 +169,9 @@ def guardar_en_git(archivo, mensaje):
     except Exception as e:
         st.error(f"Error al guardar en Git: {str(e)}")
         return False
+
+# Sincronizar con Git al inicio
+sincronizar_con_git()
 
 def procesar_archivos():
     """
@@ -722,8 +758,8 @@ elif pagina == "🚀 Ejecutar Análisis de Comisiones":
         )
         if archivo_wicho_upload:
             try:
-                # Guardar archivo Wicho en el repositorio
-                ruta_wicho = BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
+                # Guardar archivo Wicho en el directorio temporal
+                ruta_wicho = TEMP_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
                 with open(ruta_wicho, "wb") as f:
                     f.write(archivo_wicho_upload.getvalue())
                 
@@ -755,7 +791,7 @@ elif pagina == "🚀 Ejecutar Análisis de Comisiones":
             # Guardar archivos de detalle
             for archivo in archivos_detalle:
                 try:
-                    # Guardar en directorio de detalle
+                    # Guardar en directorio temporal
                     ruta_archivo = DETALLE_DIR / archivo.name
                     with open(ruta_archivo, "wb") as f:
                         f.write(archivo.getvalue())

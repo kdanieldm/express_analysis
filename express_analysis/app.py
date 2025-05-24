@@ -17,13 +17,26 @@ st.set_page_config(
 
 # Crear directorios necesarios si no existen
 BASE_DIR = Path(".")  # Directorio actual
-DETALLE_DIR = BASE_DIR / "Detalle"
-RESULTADOS_DIR = BASE_DIR / "Resultados"
-HISTORICO_DIR = BASE_DIR / "Detalle historico"
-DATA_DIR = BASE_DIR / "data"  # Directorio para datos persistentes
+TEMP_DIR = Path("/tmp/express_analysis")  # Directorio temporal en Streamlit Cloud
+DETALLE_DIR = TEMP_DIR / "Detalle"
+RESULTADOS_DIR = TEMP_DIR / "Resultados"
+HISTORICO_DIR = TEMP_DIR / "Detalle_historico"
+DATA_DIR = TEMP_DIR / "data"  # Directorio para datos persistentes
 
-for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
+# Crear directorios si no existen
+for directory in [TEMP_DIR, DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+# Función para inicializar archivos de ejemplo
+def inicializar_archivos_ejemplo():
+    """Inicializa los archivos de ejemplo en el directorio temporal."""
+    if not any(RESULTADOS_DIR.glob("*.xlsx")):
+        st.info("Inicializando archivos de ejemplo...")
+        # Aquí puedes agregar código para copiar archivos de ejemplo si es necesario
+        pass
+
+# Inicializar archivos al inicio
+inicializar_archivos_ejemplo()
 
 # Función para guardar datos persistentes
 def guardar_datos_persistentes(nombre, datos):

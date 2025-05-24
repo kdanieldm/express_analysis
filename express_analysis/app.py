@@ -447,12 +447,15 @@ def mostrar_dashboard():
             st.write(row['nombre'])
         with col4:
             if st.button(
-            "Cambiar a PAGADO" if row['estado'] == 'POR PAGAR' else "Cambiar a POR PAGAR",
-            key=f"btn_{row['nombre']}"
+                "Cambiar a PAGADO" if row['estado'] == 'POR PAGAR' else "Cambiar a POR PAGAR",
+                key=f"btn_{row['nombre']}"
             ):
-                nuevo_nombre = cambiar_estado_pago(row['nombre'])
-            st.success(f"Estado actualizado para {nuevo_nombre}")
-            st.rerun()
+                try:
+                    nuevo_nombre = cambiar_estado_pago(row['nombre'])
+                    st.success(f"Estado actualizado para {nuevo_nombre}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al cambiar estado: {str(e)}")
 
 def mostrar_archivos_carpeta(directorio, titulo):
     st.subheader(titulo)

@@ -29,70 +29,6 @@ DATA_DIR = TEMP_DIR / "data"  # Directorio para datos persistentes
 for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
-def autenticar_drive():
-    """Autentica con Google Drive."""
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-    
-    return creds
-
-def montar_drive():
-    """Monta Google Drive."""
-    try:
-        drive.mount('/content/drive')
-        return True
-    except Exception as e:
-        st.error(f"Error al montar Drive: {str(e)}")
-        return False
-
-def cargar_archivos_drive():
-    """Carga los archivos necesarios desde Google Drive."""
-    if not os.path.exists('/content/drive'):
-        if not montar_drive():
-            st.error("No se pudo montar Google Drive")
-            return
-
-    # Crear directorio en Drive si no existe
-    os.makedirs(DRIVE_PATH, exist_ok=True)
-
-    # Cargar archivo Wicho
-    archivo_wicho = DATA_DIR / "wicho.pkl"
-    if not archivo_wicho.exists():
-        wicho_path = os.path.join(DRIVE_PATH, "CHIPS RUTA JL CABRERA WICHO.xlsx")
-        if os.path.exists(wicho_path):
-            shutil.copy(wicho_path, archivo_wicho)
-            st.success("✅ Archivo Wicho cargado desde Drive")
-        else:
-            st.warning("⚠️ No se encontró el archivo Wicho en Drive")
-
-    # Cargar archivos de resultados
-    resultados_path = os.path.join(DRIVE_PATH, "Resultados")
-    if os.path.exists(resultados_path):
-        for archivo in os.listdir(resultados_path):
-            if archivo.endswith('.xlsx'):
-                shutil.copy(
-                    os.path.join(resultados_path, archivo),
-                    os.path.join(RESULTADOS_DIR, archivo)
-                )
-        st.success("✅ Archivos de resultados cargados desde Drive")
-    else:
-        st.info("No se encontraron archivos de resultados en Drive")
-
-# Cargar archivos al inicio
-cargar_archivos_drive()
-
 # Función para inicializar archivos de ejemplo
 def inicializar_archivos_ejemplo():
     """Inicializa los archivos de ejemplo en el directorio temporal."""
@@ -122,7 +58,7 @@ def sincronizar_con_git():
     try:
         st.write("Iniciando sincronización con Git...")
         
-        # Copiar archivos de Git a temporal
+        # Crear directorios en Git si no existen
         for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
             git_dir = BASE_DIR / dir_name
             temp_dir = TEMP_DIR / dir_name
@@ -131,6 +67,10 @@ def sincronizar_con_git():
             st.write(f"Directorio Git: {git_dir}")
             st.write(f"Directorio Temporal: {temp_dir}")
             
+            # Crear directorio en Git si no existe
+            git_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copiar archivos de Git a temporal
             if git_dir.exists():
                 archivos = list(git_dir.glob("*.xlsx"))
                 st.write(f"Archivos encontrados en Git: {[a.name for a in archivos]}")

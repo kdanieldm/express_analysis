@@ -17,38 +17,21 @@ st.set_page_config(
 
 # Crear directorios necesarios si no existen
 BASE_DIR = Path(".")  # Directorio actual
-TEMP_DIR = Path("/tmp/express_analysis")  # Directorio temporal en Streamlit Cloud
-DETALLE_DIR = TEMP_DIR / "Detalle"
-RESULTADOS_DIR = TEMP_DIR / "Resultados"
-HISTORICO_DIR = TEMP_DIR / "Detalle_historico"
-DATA_DIR = TEMP_DIR / "data"  # Directorio para datos persistentes
+DETALLE_DIR = BASE_DIR / "Detalle"
+RESULTADOS_DIR = BASE_DIR / "Resultados"
+HISTORICO_DIR = BASE_DIR / "Detalle historico"
+DATA_DIR = BASE_DIR / "data"  # Directorio para datos persistentes
 
 # Crear directorios si no existen
-for directory in [TEMP_DIR, DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
+for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # Función para inicializar archivos de ejemplo
 def inicializar_archivos_ejemplo():
     """Inicializa los archivos de ejemplo en el directorio temporal."""
     if not any(RESULTADOS_DIR.glob("*.xlsx")):
-        st.info("Inicializando archivos de ejemplo...")
-        try:
-            # Crear un DataFrame de ejemplo
-            df_ejemplo = pd.DataFrame({
-                'Fecha Primera Recarga': pd.date_range(start='2024-01-01', periods=10),
-                'Evaluación': ['1ra evaluación'] * 5 + ['2da evaluación'] * 3 + ['3ra evaluación'] * 2,
-                'CEL': [f'123456789{i}' for i in range(10)],
-                'Número celular asignado': [f'123456789{i}' for i in range(10)]
-            })
-            
-            # Guardar el archivo de ejemplo
-            fecha_actual = datetime.now().strftime("%Y%m%d")
-            nombre_archivo = RESULTADOS_DIR / f"{fecha_actual}_analisis_chipExpress_(PAGADO).xlsx"
-            df_ejemplo.to_excel(nombre_archivo, index=False)
-            st.success(f"✅ Archivo de ejemplo creado: {nombre_archivo}")
-            
-        except Exception as e:
-            st.error(f"❌ Error al crear archivo de ejemplo: {str(e)}")
+        st.info("No se encontraron archivos en la carpeta Resultados")
+        st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
 
 # Inicializar archivos al inicio
 inicializar_archivos_ejemplo()

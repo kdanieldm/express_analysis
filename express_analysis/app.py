@@ -122,6 +122,10 @@ def analizar_archivos_pagados():
     resultados = []
     evaluaciones_detalle = []
     
+    # Obtener ruta absoluta
+    ruta_absoluta = os.path.abspath(RESULTADOS_DIR)
+    st.write("Ruta absoluta:", ruta_absoluta)
+    
     st.write("Buscando archivos en:", str(RESULTADOS_DIR))
     archivos_encontrados = os.listdir(RESULTADOS_DIR)
     st.write("Archivos encontrados:", archivos_encontrados)
@@ -131,8 +135,11 @@ def analizar_archivos_pagados():
         if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
             st.write(f"Procesando archivo: {archivo}")
             try:
-                # Leer el archivo
-                df = pd.read_excel(RESULTADOS_DIR / archivo)
+                # Leer el archivo usando ruta absoluta
+                ruta_completa = os.path.join(ruta_absoluta, archivo)
+                st.write(f"Intentando leer archivo en: {ruta_completa}")
+                
+                df = pd.read_excel(ruta_completa)
                 st.write(f"Columnas encontradas en {archivo}:", df.columns.tolist())
                 
                 # Verificar si las columnas necesarias existen

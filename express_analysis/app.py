@@ -122,12 +122,18 @@ def analizar_archivos_pagados():
     resultados = []
     evaluaciones_detalle = []
     
-    for archivo in os.listdir(RESULTADOS_DIR):
+    st.write("Buscando archivos en:", str(RESULTADOS_DIR))
+    archivos_encontrados = os.listdir(RESULTADOS_DIR)
+    st.write("Archivos encontrados:", archivos_encontrados)
+    
+    for archivo in archivos_encontrados:
         # Ser más flexible con el formato de PAGADO
         if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
+            st.write(f"Procesando archivo: {archivo}")
             try:
                 # Leer el archivo
                 df = pd.read_excel(RESULTADOS_DIR / archivo)
+                st.write(f"Columnas encontradas en {archivo}:", df.columns.tolist())
                 
                 # Verificar si las columnas necesarias existen
                 if 'Fecha Primera Recarga' not in df.columns:
@@ -143,6 +149,7 @@ def analizar_archivos_pagados():
                 
                 # Contar evaluaciones
                 evaluaciones = df['Evaluación'].value_counts()
+                st.write(f"Evaluaciones encontradas en {archivo}:", evaluaciones.to_dict())
                 
                 # Contar evaluaciones con los valores correctos
                 primera_eval = evaluaciones.get('1ra evaluación', 0)
@@ -180,10 +187,11 @@ def analizar_archivos_pagados():
                 })
                 
             except Exception as e:
-                st.warning(f"Error al procesar {archivo}: {str(e)}")
+                st.error(f"Error al procesar {archivo}: {str(e)}")
                 continue
     
     if not resultados:
+        st.warning("No se encontraron resultados en los archivos")
         return pd.DataFrame(), pd.DataFrame()
     
     return pd.DataFrame(resultados).sort_values('fecha', ascending=False), pd.DataFrame(evaluaciones_detalle).sort_values('fecha', ascending=False)

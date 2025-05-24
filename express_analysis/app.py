@@ -32,8 +32,23 @@ def inicializar_archivos_ejemplo():
     """Inicializa los archivos de ejemplo en el directorio temporal."""
     if not any(RESULTADOS_DIR.glob("*.xlsx")):
         st.info("Inicializando archivos de ejemplo...")
-        # Aquí puedes agregar código para copiar archivos de ejemplo si es necesario
-        pass
+        try:
+            # Crear un DataFrame de ejemplo
+            df_ejemplo = pd.DataFrame({
+                'Fecha Primera Recarga': pd.date_range(start='2024-01-01', periods=10),
+                'Evaluación': ['1ra evaluación'] * 5 + ['2da evaluación'] * 3 + ['3ra evaluación'] * 2,
+                'CEL': [f'123456789{i}' for i in range(10)],
+                'Número celular asignado': [f'123456789{i}' for i in range(10)]
+            })
+            
+            # Guardar el archivo de ejemplo
+            fecha_actual = datetime.now().strftime("%Y%m%d")
+            nombre_archivo = RESULTADOS_DIR / f"{fecha_actual}_analisis_chipExpress_(PAGADO).xlsx"
+            df_ejemplo.to_excel(nombre_archivo, index=False)
+            st.success(f"✅ Archivo de ejemplo creado: {nombre_archivo}")
+            
+        except Exception as e:
+            st.error(f"❌ Error al crear archivo de ejemplo: {str(e)}")
 
 # Inicializar archivos al inicio
 inicializar_archivos_ejemplo()

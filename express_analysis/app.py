@@ -7,6 +7,12 @@ from pathlib import Path
 import re
 import hashlib
 import json
+from google.colab import drive
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import pickle
+import subprocess
 
 # Configuración de la página
 st.set_page_config(
@@ -15,6 +21,10 @@ st.set_page_config(
     layout="wide"
 )
 
+# Configuración de Google Drive
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
+DRIVE_PATH = '/content/drive/MyDrive/Express_Analysis'  # Ruta en Google Drive
+
 # Crear directorios necesarios si no existen
 BASE_DIR = Path(".")  # Directorio actual
 DETALLE_DIR = BASE_DIR / "Detalle"
@@ -22,9 +32,72 @@ RESULTADOS_DIR = BASE_DIR / "Resultados"
 HISTORICO_DIR = BASE_DIR / "Detalle historico"
 DATA_DIR = BASE_DIR / "data"  # Directorio para datos persistentes
 
-# Crear directorios si no existen
 for directory in [DETALLE_DIR, RESULTADOS_DIR, HISTORICO_DIR, DATA_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
+
+def autenticar_drive():
+    """Autentica con Google Drive."""
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    
+    return creds
+
+def montar_drive():
+    """Monta Google Drive."""
+    try:
+        drive.mount('/content/drive')
+        return True
+    except Exception as e:
+        st.error(f"Error al montar Drive: {str(e)}")
+        return False
+
+def cargar_archivos_drive():
+    """Carga los archivos necesarios desde Google Drive."""
+    if not os.path.exists('/content/drive'):
+        if not montar_drive():
+            st.error("No se pudo montar Google Drive")
+            return
+
+    # Crear directorio en Drive si no existe
+    os.makedirs(DRIVE_PATH, exist_ok=True)
+
+    # Cargar archivo Wicho
+    archivo_wicho = DATA_DIR / "wicho.pkl"
+    if not archivo_wicho.exists():
+        wicho_path = os.path.join(DRIVE_PATH, "CHIPS RUTA JL CABRERA WICHO.xlsx")
+        if os.path.exists(wicho_path):
+            shutil.copy(wicho_path, archivo_wicho)
+            st.success("✅ Archivo Wicho cargado desde Drive")
+        else:
+            st.warning("⚠️ No se encontró el archivo Wicho en Drive")
+
+    # Cargar archivos de resultados
+    resultados_path = os.path.join(DRIVE_PATH, "Resultados")
+    if os.path.exists(resultados_path):
+        for archivo in os.listdir(resultados_path):
+            if archivo.endswith('.xlsx'):
+                shutil.copy(
+                    os.path.join(resultados_path, archivo),
+                    os.path.join(RESULTADOS_DIR, archivo)
+                )
+        st.success("✅ Archivos de resultados cargados desde Drive")
+    else:
+        st.info("No se encontraron archivos de resultados en Drive")
+
+# Cargar archivos al inicio
+cargar_archivos_drive()
 
 # Función para inicializar archivos de ejemplo
 def inicializar_archivos_ejemplo():
@@ -50,7 +123,20 @@ def cargar_datos_persistentes(nombre):
         return pd.read_pickle(archivo)
     return None
 
-# Función para procesar archivos (versión simplificada)
+def guardar_en_git(archivo, mensaje):
+    """Guarda un archivo en Git."""
+    try:
+        # Agregar el archivo a Git
+        subprocess.run(['git', 'add', str(archivo)], check=True)
+        # Hacer commit
+        subprocess.run(['git', 'commit', '-m', mensaje], check=True)
+        # Hacer push
+        subprocess.run(['git', 'push', 'origin', 'main'], check=True)
+        return True
+    except Exception as e:
+        st.error(f"Error al guardar en Git: {str(e)}")
+        return False
+
 def procesar_archivos():
     """
     Procesa los archivos de Wicho y detalle para generar el análisis de comisiones.
@@ -105,8 +191,14 @@ def procesar_archivos():
         fecha_actual = datetime.now().strftime("%Y%m%d")
         nombre_archivo = RESULTADOS_DIR / f"{fecha_actual}_analisis_chipExpress_(POR_PAGAR).xlsx"
         resultado_final.to_excel(nombre_archivo, index=False)
-        st.success(f"✅ Análisis completado. Resultados guardados en: {nombre_archivo}")
-        return True
+        
+        # Guardar en Git
+        if guardar_en_git(nombre_archivo, f"Agregar análisis de {fecha_actual}"):
+            st.success(f"✅ Análisis completado y guardado en Git: {nombre_archivo}")
+            return True
+        else:
+            st.error("❌ Error al guardar el análisis en Git")
+            return False
     
     st.warning("⚠️ No se encontraron coincidencias")
     return False
@@ -630,10 +722,19 @@ elif pagina == "🚀 Ejecutar Análisis de Comisiones":
         )
         if archivo_wicho_upload:
             try:
-                dataframes_wicho = pd.read_excel(archivo_wicho_upload, sheet_name=None)
-                guardar_datos_persistentes("wicho", dataframes_wicho)
-                st.success("✅ Archivo de Wicho guardado correctamente")
-                st.rerun()
+                # Guardar archivo Wicho en el repositorio
+                ruta_wicho = BASE_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
+                with open(ruta_wicho, "wb") as f:
+                    f.write(archivo_wicho_upload.getvalue())
+                
+                # Guardar en Git
+                if guardar_en_git(ruta_wicho, "Agregar archivo Wicho"):
+                    dataframes_wicho = pd.read_excel(archivo_wicho_upload, sheet_name=None)
+                    guardar_datos_persistentes("wicho", dataframes_wicho)
+                    st.success("✅ Archivo de Wicho guardado correctamente en Git")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al guardar el archivo Wicho en Git")
             except Exception as e:
                 st.error(f"❌ Error al procesar el archivo: {str(e)}")
     else:
@@ -654,11 +755,17 @@ elif pagina == "🚀 Ejecutar Análisis de Comisiones":
             # Guardar archivos de detalle
             for archivo in archivos_detalle:
                 try:
-                    # Guardar en directorio temporal
+                    # Guardar en directorio de detalle
                     ruta_archivo = DETALLE_DIR / archivo.name
                     with open(ruta_archivo, "wb") as f:
                         f.write(archivo.getvalue())
-                    st.success(f"✅ Archivo {archivo.name} guardado correctamente")
+                    
+                    # Guardar en Git
+                    if guardar_en_git(ruta_archivo, f"Agregar archivo de detalle: {archivo.name}"):
+                        st.success(f"✅ Archivo {archivo.name} guardado correctamente en Git")
+                    else:
+                        st.error(f"❌ Error al guardar {archivo.name} en Git")
+                        continue
                 except Exception as e:
                     st.error(f"❌ Error al guardar {archivo.name}: {str(e)}")
                     continue

@@ -45,12 +45,17 @@ Thumbs.db
 *.log
 *.sqlite3
 
+# Project specific
+# Detalle/
+# Resultados/
+# "Detalle historico"/
+
 # Allow Excel files
 !*.xlsx
 !*.xls
 
 # Project specific
-Detalle/
-Resultados/
-"Detalle historico"/
+# Detalle/
+# Resultados/
+# "Detalle historico"/
 *.xlsx 

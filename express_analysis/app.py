@@ -310,10 +310,11 @@ def analizar_archivos_pagados():
         archivos_encontrados = os.listdir(RESULTADOS_DIR)
         st.write("Archivos encontrados después de sincronizar:", archivos_encontrados)
     
+    # Procesar cada archivo
     for archivo in archivos_encontrados:
         # Ser más flexible con el formato de PAGADO
         if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
-            st.write(f"Procesando archivo: {archivo}")
+            st.write(f"\nProcesando archivo: {archivo}")
             try:
                 # Leer el archivo usando ruta absoluta
                 ruta_completa = os.path.join(ruta_absoluta, archivo)
@@ -381,7 +382,14 @@ def analizar_archivos_pagados():
         st.warning("No se encontraron resultados en los archivos")
         return pd.DataFrame(), pd.DataFrame()
     
-    return pd.DataFrame(resultados).sort_values('fecha', ascending=False), pd.DataFrame(evaluaciones_detalle).sort_values('fecha', ascending=False)
+    # Ordenar resultados por fecha
+    df_resultados = pd.DataFrame(resultados)
+    df_resultados = df_resultados.sort_values('fecha', ascending=False)
+    
+    df_funnel = pd.DataFrame(evaluaciones_detalle)
+    df_funnel = df_funnel.sort_values('fecha', ascending=False)
+    
+    return df_resultados, df_funnel
 
 def mostrar_analisis_pagados():
     st.header("Análisis de Comisiones Pagadas")

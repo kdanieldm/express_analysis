@@ -128,13 +128,45 @@ def cargar_datos_persistentes(nombre):
 def sincronizar_con_git():
     """Sincroniza los archivos entre Git y el directorio temporal."""
     try:
+        st.write("Iniciando sincronización con Git...")
+        
         # Copiar archivos de Git a temporal
         for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
             git_dir = BASE_DIR / dir_name
             temp_dir = TEMP_DIR / dir_name
+            
+            st.write(f"Procesando directorio: {dir_name}")
+            st.write(f"Directorio Git: {git_dir}")
+            st.write(f"Directorio Temporal: {temp_dir}")
+            
             if git_dir.exists():
-                for archivo in git_dir.glob("*.xlsx"):
-                    shutil.copy2(archivo, temp_dir / archivo.name)
+                archivos = list(git_dir.glob("*.xlsx"))
+                st.write(f"Archivos encontrados en Git: {[a.name for a in archivos]}")
+                
+                for archivo in archivos:
+                    try:
+                        # Asegurar que el directorio temporal existe
+                        temp_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copiar archivo
+                        destino = temp_dir / archivo.name
+                        shutil.copy2(archivo, destino)
+                        st.write(f"Copiado: {archivo.name} -> {destino}")
+                    except Exception as e:
+                        st.error(f"Error al copiar {archivo.name}: {str(e)}")
+            else:
+                st.warning(f"Directorio Git no existe: {git_dir}")
+        
+        # Verificar archivos en directorio temporal
+        st.write("\nVerificando archivos en directorio temporal:")
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            temp_dir = TEMP_DIR / dir_name
+            if temp_dir.exists():
+                archivos = list(temp_dir.glob("*.xlsx"))
+                st.write(f"{dir_name}: {[a.name for a in archivos]}")
+            else:
+                st.warning(f"Directorio temporal no existe: {temp_dir}")
+        
         return True
     except Exception as e:
         st.error(f"Error al sincronizar con Git: {str(e)}")

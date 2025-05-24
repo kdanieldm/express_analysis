@@ -670,13 +670,23 @@ elif pagina == "🚀 Ejecutar Análisis de Comisiones":
         if st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True):
             # Guardar archivos de detalle
             for archivo in archivos_detalle:
-                with open(DETALLE_DIR / archivo.name, "wb") as f:
-                    f.write(archivo.getvalue())
+                try:
+                    # Guardar en directorio temporal
+                    ruta_archivo = DETALLE_DIR / archivo.name
+                    with open(ruta_archivo, "wb") as f:
+                        f.write(archivo.getvalue())
+                    st.success(f"✅ Archivo {archivo.name} guardado correctamente")
+                except Exception as e:
+                    st.error(f"❌ Error al guardar {archivo.name}: {str(e)}")
+                    continue
             
             # Ejecutar análisis
             with st.spinner("🔄 Procesando archivos..."):
-                procesar_archivos()
-                st.rerun()
+                if procesar_archivos():
+                    st.success("✅ Análisis completado exitosamente")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al procesar los archivos")
 
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración")

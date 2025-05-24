@@ -7,10 +7,6 @@ from pathlib import Path
 import re
 import hashlib
 import json
-from google.colab import drive
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 import pickle
 import subprocess
 
@@ -20,10 +16,6 @@ st.set_page_config(
     page_icon="📊",
     layout="wide"
 )
-
-# Configuración de Google Drive
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
-DRIVE_PATH = '/content/drive/MyDrive/Express_Analysis'  # Ruta en Google Drive
 
 # Configuración de directorios
 BASE_DIR = Path(".")  # Directorio del repositorio

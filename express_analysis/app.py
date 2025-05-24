@@ -100,12 +100,31 @@ def procesar_archivos():
     st.warning("⚠️ No se encontraron coincidencias")
     return False
 
+def obtener_estado_archivos():
+    archivos = []
+    for archivo in os.listdir(RESULTADOS_DIR):
+        if archivo.endswith('.xlsx'):
+            # Extraer fecha del nombre del archivo
+            fecha_match = re.match(r'(\d{8})_', archivo)
+            if fecha_match:
+                fecha_str = fecha_match.group(1)
+                fecha = datetime.strptime(fecha_str, '%Y%m%d')
+                # Ser más flexible con el formato de PAGADO
+                estado = "PAGADO" if "PAGADO" in archivo.upper() else "POR PAGAR"
+                archivos.append({
+                    'nombre': archivo,
+                    'fecha': fecha,
+                    'estado': estado
+                })
+    return sorted(archivos, key=lambda x: x['fecha'], reverse=True)
+
 def analizar_archivos_pagados():
     resultados = []
     evaluaciones_detalle = []
     
     for archivo in os.listdir(RESULTADOS_DIR):
-        if archivo.endswith('.xlsx') and 'PAGADO' in archivo and not archivo.startswith('~$'):
+        # Ser más flexible con el formato de PAGADO
+        if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
             try:
                 # Leer el archivo
                 df = pd.read_excel(RESULTADOS_DIR / archivo)
@@ -315,23 +334,6 @@ def mostrar_analisis_pagados():
         hide_index=True,
         use_container_width=True
     )
-
-def obtener_estado_archivos():
-    archivos = []
-    for archivo in os.listdir(RESULTADOS_DIR):
-        if archivo.endswith('.xlsx'):
-            # Extraer fecha del nombre del archivo
-            fecha_match = re.match(r'(\d{8})_', archivo)
-            if fecha_match:
-                fecha_str = fecha_match.group(1)
-                fecha = datetime.strptime(fecha_str, '%Y%m%d')
-                estado = "PAGADO" if "PAGADO" in archivo else "POR PAGAR"
-                archivos.append({
-                    'nombre': archivo,
-                    'fecha': fecha,
-                    'estado': estado
-                })
-    return sorted(archivos, key=lambda x: x['fecha'], reverse=True)
 
 def cambiar_estado_pago(nombre_archivo):
     archivo_actual = RESULTADOS_DIR / nombre_archivo

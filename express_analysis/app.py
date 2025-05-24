@@ -301,6 +301,15 @@ def analizar_archivos_pagados():
     archivos_encontrados = os.listdir(RESULTADOS_DIR)
     st.write("Archivos encontrados:", archivos_encontrados)
     
+    # Verificar si hay archivos
+    if not archivos_encontrados:
+        st.warning("No se encontraron archivos en el directorio de resultados")
+        st.write("Intentando sincronizar con Git...")
+        sincronizar_con_git()
+        # Verificar nuevamente después de sincronizar
+        archivos_encontrados = os.listdir(RESULTADOS_DIR)
+        st.write("Archivos encontrados después de sincronizar:", archivos_encontrados)
+    
     for archivo in archivos_encontrados:
         # Ser más flexible con el formato de PAGADO
         if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
@@ -376,6 +385,10 @@ def analizar_archivos_pagados():
 
 def mostrar_analisis_pagados():
     st.header("Análisis de Comisiones Pagadas")
+    
+    # Forzar sincronización antes de analizar
+    st.write("Sincronizando archivos con Git...")
+    sincronizar_con_git()
     
     df_analisis, df_funnel = analizar_archivos_pagados()
     

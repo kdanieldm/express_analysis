@@ -56,8 +56,11 @@ ENV/
 ehthumbs.db
 Thumbs.db
 
-# Project specific - PERMITIR archivos Excel en el repositorio
-# Detalle/
-# Resultados/
-# "Detalle historico"/
-# *.xlsx 
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Temporary files
+Temp/
+temp/ 

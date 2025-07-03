@@ -1,0 +1,8 @@
+{
+    "users": {
+        "admin": {
+            "password": "fa7dc342384a14fd0bf694e07d76d549c094f98e0069ee1996882988de8a34f6",
+            "role": "admin"
+        }
+    }
+}

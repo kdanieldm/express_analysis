@@ -123,15 +123,258 @@ def cargar_datos_persistentes(clave):
         st.warning(f"⚠️ No se pudieron cargar los datos: {str(e)}")
         return None
 
+def sincronizar_con_git():
+    """Sincroniza los archivos entre Git y el directorio temporal."""
+    try:
+        st.write("Iniciando sincronización con Git...")
+        
+        # Crear directorios en Git si no existen
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            git_dir = BASE_DIR / dir_name
+            temp_dir = TEMP_DIR / dir_name
+            
+            st.write(f"Procesando directorio: {dir_name}")
+            st.write(f"Directorio Git: {git_dir}")
+            st.write(f"Directorio Temporal: {temp_dir}")
+            
+            # Crear directorio en Git si no existe
+            git_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Copiar archivos de Git a temporal
+            if git_dir.exists():
+                archivos = list(git_dir.glob("*.xlsx"))
+                st.write(f"Archivos encontrados en Git: {[a.name for a in archivos]}")
+                
+                for archivo in archivos:
+                    try:
+                        # Asegurar que el directorio temporal existe
+                        temp_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copiar archivo
+                        destino = temp_dir / archivo.name
+                        shutil.copy2(archivo, destino)
+                        st.write(f"Copiado: {archivo.name} -> {destino}")
+                    except Exception as e:
+                        st.error(f"Error al copiar {archivo.name}: {str(e)}")
+            else:
+                st.warning(f"Directorio Git no existe: {git_dir}")
+        
+        # Verificar archivos en directorio temporal
+        st.write("\nVerificando archivos en directorio temporal:")
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            temp_dir = TEMP_DIR / dir_name
+            if temp_dir.exists():
+                archivos = list(temp_dir.glob("*.xlsx"))
+                st.write(f"{dir_name}: {[a.name for a in archivos]}")
+            else:
+                st.warning(f"Directorio temporal no existe: {temp_dir}")
+        
+        # Copiar archivos del repositorio al directorio temporal
+        st.write("\nCopiando archivos del repositorio al directorio temporal...")
+        for dir_name in ["Detalle", "Resultados", "Detalle historico"]:
+            git_dir = BASE_DIR / dir_name
+            temp_dir = TEMP_DIR / dir_name
+            
+            if git_dir.exists():
+                for archivo in git_dir.glob("*.xlsx"):
+                    try:
+                        # Asegurar que el directorio temporal existe
+                        temp_dir.mkdir(parents=True, exist_ok=True)
+                        
+                        # Copiar archivo
+                        destino = temp_dir / archivo.name
+                        shutil.copy2(archivo, destino)
+                        st.write(f"Copiado del repositorio: {archivo.name} -> {destino}")
+                    except Exception as e:
+                        st.error(f"Error al copiar {archivo.name} del repositorio: {str(e)}")
+        
+        return True
+    except Exception as e:
+        st.error(f"Error al sincronizar con Git: {str(e)}")
+        return False
+
+def inicializar_archivos_ejemplo():
+    """Inicializa los archivos de ejemplo en el directorio temporal."""
+    try:
+        # Verificar si hay archivos en el directorio temporal
+        if not any(RESULTADOS_DIR.glob("*.xlsx")):
+            st.info("No se encontraron archivos en la carpeta Resultados")
+            st.info("Por favor, sube los archivos en la sección '🚀 Ejecutar Análisis de Comisiones'")
+            
+            # Intentar sincronizar con Git
+            st.write("Intentando sincronizar con Git...")
+            sincronizar_con_git()
+            
+            # Verificar nuevamente después de sincronizar
+            if not any(RESULTADOS_DIR.glob("*.xlsx")):
+                st.warning("No se encontraron archivos después de sincronizar con Git")
+    except Exception as e:
+        st.error(f"Error al inicializar archivos de ejemplo: {str(e)}")
+
+# Inicializar archivos al inicio
+inicializar_archivos_ejemplo()
+
+# Función para guardar datos persistentes
+def guardar_datos_persistentes(nombre, datos):
+    """Guarda datos localmente."""
+    archivo = DATA_DIR / f"{nombre}.pkl"
+    pd.to_pickle(datos, archivo)
+
+# Función para cargar datos persistentes
+def cargar_datos_persistentes(nombre):
+    """Carga datos localmente."""
+    archivo = DATA_DIR / f"{nombre}.pkl"
+    if archivo.exists():
+        return pd.read_pickle(archivo)
+    return None
+
+def guardar_en_git(archivo, mensaje):
+    """Guarda un archivo en Git."""
+    try:
+        # Determinar el directorio de destino en Git
+        if "Detalle" in str(archivo):
+            git_dir = BASE_DIR / "Detalle"
+        elif "Resultados" in str(archivo):
+            git_dir = BASE_DIR / "Resultados"
+        elif "Detalle historico" in str(archivo):
+            git_dir = BASE_DIR / "Detalle historico"
+        else:
+            git_dir = BASE_DIR
+
+        # Crear directorio si no existe
+        git_dir.mkdir(parents=True, exist_ok=True)
+
+        # Copiar archivo a Git
+        shutil.copy2(archivo, git_dir / archivo.name)
+
+        # Agregar el archivo a Git
+        subprocess.run(['git', 'add', str(git_dir / archivo.name)], check=True)
+        # Hacer commit
+        subprocess.run(['git', 'commit', '-m', mensaje], check=True)
+        # Hacer push
+        subprocess.run(['git', 'push', 'origin', 'main'], check=True)
+        return True
+    except Exception as e:
+        st.error(f"Error al guardar en Git: {str(e)}")
+        return False
+
+def procesar_archivos():
+    """
+    Procesa los archivos de Wicho y detalle para generar el análisis de comisiones.
+    """
+    # Cargar archivo Wicho persistente
+    archivo_wicho = DATA_DIR / "wicho.pkl"
+    if not archivo_wicho.exists():
+        st.error("❌ No se encontró el archivo de Wicho. Por favor, súbelo primero.")
+        return False
+
+    try:
+        dataframes_wicho = pd.read_pickle(archivo_wicho)
+        st.success("✅ Archivo de Wicho cargado correctamente")
+    except Exception as e:
+        st.error(f"❌ Error al leer el archivo de Wicho: {str(e)}")
+        return False
+
+    # Procesar archivos de detalle
+    archivos_detalle = [f for f in os.listdir(DETALLE_DIR) if f.endswith('.xlsx') and not f.startswith('~$')]
+    if not archivos_detalle:
+        st.warning("⚠️ No hay archivos de detalle para procesar")
+        return False
+
+    resultados_finales = []
+    for archivo_detalle in archivos_detalle:
+        try:
+            df_detalle = pd.read_excel(DETALLE_DIR / archivo_detalle, header=2)
+            df_detalle.columns = df_detalle.columns.str.strip()
+            
+            # Procesar cada hoja del archivo wicho
+            for nombre_hoja, df_wicho in dataframes_wicho.items():
+                if 'CEL' in df_wicho.columns:
+                    df_join = pd.merge(
+                        df_wicho,
+                        df_detalle,
+                        left_on='CEL',
+                        right_on='Número celular asignado',
+                        how='inner'
+                    )
+                    if not df_join.empty:
+                        resultados_finales.append(df_join)
+            
+            # Mover archivo a histórico
+            shutil.move(str(DETALLE_DIR / archivo_detalle), str(HISTORICO_DIR / archivo_detalle))
+            
+        except Exception as e:
+            st.error(f"❌ Error procesando {archivo_detalle}: {str(e)}")
+            continue
+
+    if resultados_finales:
+        resultado_final = pd.concat(resultados_finales, ignore_index=True)
+        fecha_actual = datetime.now().strftime("%Y%m%d")
+        nombre_archivo = RESULTADOS_DIR / f"{fecha_actual}_analisis_chipExpress_(POR_PAGAR).xlsx"
+        resultado_final.to_excel(nombre_archivo, index=False)
+        
+        # Guardar en Git
+        if guardar_en_git(nombre_archivo, f"Agregar análisis de {fecha_actual}"):
+            st.success(f"✅ Análisis completado y guardado en Git: {nombre_archivo}")
+            return True
+        else:
+            st.error("❌ Error al guardar el análisis en Git")
+            return False
+    
+    st.warning("⚠️ No se encontraron coincidencias")
+    return False
+
+def obtener_estado_archivos():
+    archivos = []
+    for archivo in os.listdir(RESULTADOS_DIR):
+        if archivo.endswith('.xlsx'):
+            # Extraer fecha del nombre del archivo
+            fecha_match = re.match(r'(\d{8})_', archivo)
+            if fecha_match:
+                fecha_str = fecha_match.group(1)
+                fecha = datetime.strptime(fecha_str, '%Y%m%d')
+                # Ser más flexible con el formato de PAGADO
+                estado = "PAGADO" if "PAGADO" in archivo.upper() else "POR PAGAR"
+                archivos.append({
+                    'nombre': archivo,
+                    'fecha': fecha,
+                    'estado': estado
+                })
+    return sorted(archivos, key=lambda x: x['fecha'], reverse=True)
+
 def analizar_archivos_pagados():
     resultados = []
     evaluaciones_detalle = []
     
-    for archivo in os.listdir(RESULTADOS_DIR):
-        if archivo.endswith('.xlsx') and 'PAGADO' in archivo and not archivo.startswith('~$'):
+    # Obtener ruta absoluta
+    ruta_absoluta = os.path.abspath(RESULTADOS_DIR)
+    st.write("Ruta absoluta:", ruta_absoluta)
+    
+    st.write("Buscando archivos en:", str(RESULTADOS_DIR))
+    archivos_encontrados = os.listdir(RESULTADOS_DIR)
+    st.write("Archivos encontrados:", archivos_encontrados)
+    
+    # Verificar si hay archivos
+    if not archivos_encontrados:
+        st.warning("No se encontraron archivos en el directorio de resultados")
+        st.write("Intentando sincronizar con Git...")
+        sincronizar_con_git()
+        # Verificar nuevamente después de sincronizar
+        archivos_encontrados = os.listdir(RESULTADOS_DIR)
+        st.write("Archivos encontrados después de sincronizar:", archivos_encontrados)
+    
+    # Procesar cada archivo
+    for archivo in archivos_encontrados:
+        # Ser más flexible con el formato de PAGADO
+        if archivo.endswith('.xlsx') and "PAGADO" in archivo.upper() and not archivo.startswith('~$'):
+            st.write(f"\nProcesando archivo: {archivo}")
             try:
-                # Leer el archivo
-                df = pd.read_excel(RESULTADOS_DIR / archivo)
+                # Leer el archivo usando ruta absoluta
+                ruta_completa = os.path.join(ruta_absoluta, archivo)
+                st.write(f"Intentando leer archivo en: {ruta_completa}")
+                
+                df = pd.read_excel(ruta_completa)
+                st.write(f"Columnas encontradas en {archivo}:", df.columns.tolist())
                 
                 # Verificar si las columnas necesarias existen
                 if 'Fecha Primera Recarga' not in df.columns:
@@ -147,6 +390,7 @@ def analizar_archivos_pagados():
                 
                 # Contar evaluaciones
                 evaluaciones = df['Evaluación'].value_counts()
+                st.write(f"Evaluaciones encontradas en {archivo}:", evaluaciones.to_dict())
                 
                 # Contar evaluaciones con los valores correctos
                 primera_eval = evaluaciones.get('1ra evaluación', 0)
@@ -184,13 +428,21 @@ def analizar_archivos_pagados():
                 })
                 
             except Exception as e:
-                st.warning(f"Error al procesar {archivo}: {str(e)}")
+                st.error(f"Error al procesar {archivo}: {str(e)}")
                 continue
     
     if not resultados:
+        st.warning("No se encontraron resultados en los archivos")
         return pd.DataFrame(), pd.DataFrame()
     
-    return pd.DataFrame(resultados).sort_values('fecha', ascending=False), pd.DataFrame(evaluaciones_detalle).sort_values('fecha', ascending=False)
+    # Ordenar resultados por fecha
+    df_resultados = pd.DataFrame(resultados)
+    df_resultados = df_resultados.sort_values('fecha', ascending=False)
+    
+    df_funnel = pd.DataFrame(evaluaciones_detalle)
+    df_funnel = df_funnel.sort_values('fecha', ascending=False)
+    
+    return df_resultados, df_funnel
 
 def calcular_tasa_conversion_wicho():
     """
@@ -234,6 +486,10 @@ def calcular_tasa_conversion_wicho():
 
 def mostrar_analisis_pagados():
     st.header("Análisis de Comisiones Pagadas")
+    
+    # Forzar sincronización antes de analizar
+    st.write("Sincronizando archivos con Git...")
+    sincronizar_con_git()
     
     df_analisis, df_funnel = analizar_archivos_pagados()
     
@@ -733,25 +989,6 @@ def mostrar_analisis_pagados():
         hide_index=True,
         use_container_width=True
     )
-
-def obtener_estado_archivos():
-    archivos = []
-    for archivo in os.listdir(RESULTADOS_DIR):
-        if archivo.endswith('.xlsx'):
-            # Extraer fecha del nombre del archivo - manejar tanto formato antiguo como nuevo
-            # Formato antiguo: YYYYMMDD_ (8 dígitos)
-            # Formato nuevo: YYYYMMDD_HHMM_ (12 dígitos)
-            fecha_match = re.match(r'(\d{8})_', archivo)
-            if fecha_match:
-                fecha_str = fecha_match.group(1)
-                fecha = datetime.strptime(fecha_str, '%Y%m%d')
-                estado = "PAGADO" if "PAGADO" in archivo else "POR PAGAR"
-                archivos.append({
-                    'nombre': archivo,
-                    'fecha': fecha,
-                    'estado': estado
-                })
-    return sorted(archivos, key=lambda x: x['fecha'], reverse=True)
 
 def cambiar_estado_pago(nombre_archivo):
     archivo_actual = RESULTADOS_DIR / nombre_archivo
@@ -1385,173 +1622,72 @@ elif pagina == "📁 Gestión de Archivos":
 elif pagina == "🚀 Ejecutar Análisis de Comisiones":
     st.title("🚀 Ejecutar Análisis de Comisiones")
     
-    # Paso 1: Archivo Wicho (siempre permitir subir)
-    archivo_wicho = TEMP_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
-    
-    st.markdown("### 1️⃣ Subir Archivo Wicho")
-    
-    # Mostrar estado actual del archivo
-    if archivo_wicho.exists():
-        st.success("✅ Archivo de Wicho actualmente cargado")
-        # Mostrar información del archivo actual
-        fecha_mod = datetime.fromtimestamp(os.path.getmtime(archivo_wicho))
-        tamaño = os.path.getsize(archivo_wicho) / 1024
-        st.info(f"📄 Archivo actual: {archivo_wicho.name}")
-        st.info(f"📅 Última modificación: {fecha_mod.strftime('%Y-%m-%d %H:%M:%S')}")
-        st.info(f"📏 Tamaño: {tamaño:.1f} KB")
-        
-        # Botón para eliminar archivo actual
-        if st.button("🗑️ Eliminar archivo actual", type="secondary"):
+    # Paso 1: Archivo Wicho (solo si no existe)
+    archivo_wicho = DATA_DIR / "wicho.pkl"
+    if not archivo_wicho.exists():
+        st.markdown("### 1️⃣ Subir Archivo Wicho (Solo primera vez)")
+        archivo_wicho_upload = st.file_uploader(
+            "Sube el archivo CHIPS RUTA JL CABRERA WICHO.xlsx",
+            type=['xlsx'],
+            help="Este archivo contiene la información base para el análisis"
+        )
+        if archivo_wicho_upload:
             try:
-                archivo_wicho.unlink()
-                st.success("✅ Archivo eliminado. Puedes subir uno nuevo.")
-                # Usar session state para indicar que se eliminó
-                st.session_state.archivo_eliminado = True
-            except Exception as e:
-                st.error(f"❌ Error al eliminar archivo: {str(e)}")
-    
-    # Uploader para el archivo Wicho
-    archivo_wicho_upload = st.file_uploader(
-        "Sube el archivo CHIPS RUTA JL CABRERA WICHO.xlsx",
-        type=['xlsx'],
-        help="Este archivo contiene la información base para el análisis. Si ya existe uno, será reemplazado."
-    )
-    
-    if archivo_wicho_upload:
-        try:
-            with st.spinner("🔄 Procesando archivo Wicho..."):
                 # Guardar archivo Wicho en el directorio temporal
                 ruta_wicho = TEMP_DIR / "CHIPS RUTA JL CABRERA WICHO.xlsx"
                 with open(ruta_wicho, "wb") as f:
                     f.write(archivo_wicho_upload.getvalue())
                 
-                # Guardar datos persistentes
-                dataframes_wicho = pd.read_excel(archivo_wicho_upload, sheet_name=None)
-                guardar_datos_persistentes("wicho", dataframes_wicho)
-                
-                # Guardar en Git (función simplificada)
-                if guardar_en_git(ruta_wicho, "Actualizar archivo Wicho"):
-                    st.success("✅ Archivo de Wicho guardado correctamente")
+                # Guardar en Git
+                if guardar_en_git(ruta_wicho, "Agregar archivo Wicho"):
+                    dataframes_wicho = pd.read_excel(archivo_wicho_upload, sheet_name=None)
+                    guardar_datos_persistentes("wicho", dataframes_wicho)
+                    st.success("✅ Archivo de Wicho guardado correctamente en Git")
+                    st.rerun()
                 else:
-                    st.error("❌ Error al guardar el archivo Wicho")
-        except Exception as e:
-            st.error(f"❌ Error al procesar el archivo: {str(e)}")
+                    st.error("❌ Error al guardar el archivo Wicho en Git")
+            except Exception as e:
+                st.error(f"❌ Error al procesar el archivo: {str(e)}")
+    else:
+        st.success("✅ Archivo de Wicho ya está cargado")
 
     # Paso 2: Archivos de Detalle
     st.markdown("### 2️⃣ Subir Archivos de Detalle")
-    
-    # Crear tabs para diferentes tipos de archivos
-    tab1, tab2 = st.tabs(["📁 Archivos Excel", "📦 Archivos ZIP"])
-    
-    with tab1:
-        archivos_detalle = st.file_uploader(
-            "Sube los archivos de detalle en Excel",
-            type=['xlsx'],
-            accept_multiple_files=True,
-            help="Puedes subir uno o varios archivos de detalle para procesar"
-        )
-    
-    with tab2:
-        archivos_zip = st.file_uploader(
-            "Sube los archivos ZIP",
-            type=['zip'],
-            accept_multiple_files=True,
-            help="Puedes subir uno o varios archivos ZIP. Se extraerán automáticamente los archivos Excel."
-        )
-        
-        if archivos_zip:
-            with st.spinner("🔄 Procesando archivos ZIP..."):
-                for zip_file in archivos_zip:
-                    try:
-                        # Crear directorio temporal para extraer
-                        temp_extract_dir = TEMP_DIR / "temp_extract"
-                        temp_extract_dir.mkdir(parents=True, exist_ok=True)
-                        
-                        # Guardar ZIP temporalmente
-                        temp_zip = temp_extract_dir / zip_file.name
-                        with open(temp_zip, "wb") as f:
-                            f.write(zip_file.getvalue())
-                        
-                        # Extraer ZIP
-                        import zipfile
-                        with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-                            zip_ref.extractall(temp_extract_dir)
-                        
-                        # Mover archivos Excel a Detalle
-                        for excel_file in temp_extract_dir.glob("**/*.xlsx"):
-                            if not excel_file.name.startswith('~$'):  # Ignorar archivos temporales
-                                shutil.copy2(excel_file, DETALLE_DIR / excel_file.name)
-                                st.success(f"✅ Extraído: {excel_file.name}")
-                        
-                        # Limpiar archivos temporales
-                        shutil.rmtree(temp_extract_dir)
-                        temp_zip.unlink()
-                        
-                    except Exception as e:
-                        st.error(f"❌ Error al procesar {zip_file.name}: {str(e)}")
-    
-    # Paso 3: Ejecutar Análisis
-    st.markdown("### 3️⃣ Ejecutar Análisis")
-    
-    # Mostrar estado de los archivos
-    col1, col2 = st.columns(2)
-    with col1:
-        if archivo_wicho.exists():
-            st.success("✅ Archivo Wicho listo")
-        else:
-            st.warning("⚠️ Falta subir el archivo Wicho")
-    
-    with col2:
-        total_archivos = len(archivos_detalle) + (len(archivos_zip) if archivos_zip else 0)
-        if total_archivos > 0:
-            st.success(f"✅ {total_archivos} archivos listos para procesar")
-        else:
-            st.warning("⚠️ Falta subir archivos de detalle")
-    
-    # Mostrar resumen de archivos a procesar
-    if total_archivos > 0:
-        st.markdown("#### 📋 Resumen de archivos a procesar")
-        if archivos_detalle:
-            st.markdown("**Archivos Excel:**")
-            for archivo in archivos_detalle:
-                st.write(f"- {archivo.name}")
-        
-        if archivos_zip:
-            st.markdown("**Archivos ZIP:**")
-            for zip_file in archivos_zip:
-                st.write(f"- {zip_file.name}")
-    
-    # Botón para ejecutar el análisis
-    if archivos_detalle or archivos_zip:
-        if st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True):
-            if not archivo_wicho.exists():
-                st.error("❌ Primero debes subir el archivo de Wicho")
-            else:
-                # Procesar archivos Excel
-                for archivo in archivos_detalle:
-                    try:
-                        # Guardar en directorio temporal
-                        ruta_archivo = DETALLE_DIR / archivo.name
-                        with open(ruta_archivo, "wb") as f:
-                            f.write(archivo.getvalue())
-                        
-                        # Guardar en Git
-                        if guardar_en_git(ruta_archivo, f"Agregar archivo de detalle: {archivo.name}"):
-                            st.success(f"✅ Archivo {archivo.name} guardado correctamente en Git")
-                        else:
-                            st.error(f"❌ Error al guardar {archivo.name} en Git")
-                            continue
-                    except Exception as e:
-                        st.error(f"❌ Error al guardar {archivo.name}: {str(e)}")
-                        continue
+    archivos_detalle = st.file_uploader(
+        "Sube los archivos de detalle",
+        type=['xlsx'],
+        accept_multiple_files=True,
+        help="Puedes subir uno o varios archivos de detalle para procesar"
+    )
 
-                # Ejecutar análisis
-                with st.spinner("🔄 Procesando archivos..."):
-                    if procesar_archivos():
-                        st.success("✅ Análisis completado exitosamente")
-                        st.rerun()
+    # Paso 3: Ejecutar Análisis
+    if archivos_detalle:
+        if st.button("🚀 Ejecutar Análisis", type="primary", use_container_width=True):
+            # Guardar archivos de detalle
+            for archivo in archivos_detalle:
+                try:
+                    # Guardar en directorio temporal
+                    ruta_archivo = DETALLE_DIR / archivo.name
+                    with open(ruta_archivo, "wb") as f:
+                        f.write(archivo.getvalue())
+                    
+                    # Guardar en Git
+                    if guardar_en_git(ruta_archivo, f"Agregar archivo de detalle: {archivo.name}"):
+                        st.success(f"✅ Archivo {archivo.name} guardado correctamente en Git")
                     else:
-                        st.error("❌ Error al procesar los archivos")
+                        st.error(f"❌ Error al guardar {archivo.name} en Git")
+                        continue
+                except Exception as e:
+                    st.error(f"❌ Error al guardar {archivo.name}: {str(e)}")
+                    continue
+            
+            # Ejecutar análisis
+            with st.spinner("🔄 Procesando archivos..."):
+                if procesar_archivos():
+                    st.success("✅ Análisis completado exitosamente")
+                    st.rerun()
+                else:
+                    st.error("❌ Error al procesar los archivos")
 
 elif pagina == "⚙️ Configuración":
     st.title("⚙️ Configuración")

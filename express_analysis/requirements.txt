@@ -1,4 +1,10 @@
 streamlit==1.32.0
 pandas==2.2.1
 openpyxl==3.1.2
-plotly==5.19.0 
+plotly==5.19.0
+numpy==1.24.3
+python-dateutil==2.8.2
+pytz==2023.3
+rich==13.9.4
+watchdog==3.0.0
+click==8.1.7
